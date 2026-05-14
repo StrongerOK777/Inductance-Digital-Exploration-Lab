@@ -1,0 +1,364 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/*
+ * =============================================
+ * LIGHT THEME — Projector / Classroom optimized
+ * High contrast, white background, dark text
+ * =============================================
+ */
+:root {
+  --radius: 0.5rem;
+  --background: oklch(0.98 0.002 250);
+  --foreground: oklch(0.15 0.02 250);
+  --card: oklch(0.97 0.003 250);
+  --card-foreground: oklch(0.15 0.02 250);
+  --popover: oklch(0.98 0.002 250);
+  --popover-foreground: oklch(0.15 0.02 250);
+  --primary: oklch(0.45 0.18 230);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.94 0.005 250);
+  --secondary-foreground: oklch(0.25 0.02 250);
+  --muted: oklch(0.94 0.005 250);
+  --muted-foreground: oklch(0.45 0.02 250);
+  --accent: oklch(0.55 0.18 55);
+  --accent-foreground: oklch(0.98 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.88 0.01 250);
+  --input: oklch(0.92 0.005 250);
+  --ring: oklch(0.5 0.18 230);
+  --chart-1: oklch(0.5 0.18 230);
+  --chart-2: oklch(0.45 0.15 260);
+  --chart-3: oklch(0.55 0.18 55);
+  --chart-4: oklch(0.55 0.22 25);
+  --chart-5: oklch(0.5 0.15 150);
+  --sidebar: oklch(0.96 0.003 250);
+  --sidebar-foreground: oklch(0.15 0.02 250);
+  --sidebar-primary: oklch(0.45 0.18 230);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.94 0.005 250);
+  --sidebar-accent-foreground: oklch(0.15 0.02 250);
+  --sidebar-border: oklch(0.88 0.01 250);
+  --sidebar-ring: oklch(0.5 0.18 230);
+
+  /* Theme-aware custom vars — LIGHT */
+  --lab-bg: #f5f7fa;
+  --lab-grid-color: rgba(30, 80, 140, 0.08);
+  --lab-grid-fine: rgba(30, 80, 140, 0.04);
+  --lab-primary: #0e6f9e;
+  --lab-primary-soft: rgba(14, 111, 158, 0.12);
+  --lab-primary-text: #0a5578;
+  --lab-secondary: #b45309;
+  --lab-secondary-soft: rgba(180, 83, 9, 0.1);
+  --lab-muted: #64748b;
+  --lab-muted-soft: rgba(100, 116, 139, 0.5);
+  --lab-panel-bg: rgba(255, 255, 255, 0.92);
+  --lab-panel-border: rgba(14, 111, 158, 0.18);
+  --lab-success: #15803d;
+  --lab-danger: #dc2626;
+  --lab-value-text: #0f172a;
+  --lab-value-glow: none;
+  --lab-slider-track: rgba(14, 111, 158, 0.15);
+  --lab-slider-thumb: #0e6f9e;
+  --lab-slider-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  --lab-canvas-bg: #eef2f7;
+  --lab-canvas-grid: rgba(30, 80, 140, 0.1);
+  --lab-canvas-curve: #0e6f9e;
+  --lab-canvas-point: #b45309;
+  --lab-canvas-outlier: #dc2626;
+  --lab-canvas-text: #334155;
+  --lab-canvas-axis: rgba(30, 80, 140, 0.35);
+  --lab-canvas-band: rgba(14, 111, 158, 0.06);
+  --lab-3d-bg: #e8edf4;
+  --lab-scrollbar-track: rgba(200, 210, 225, 0.5);
+  --lab-scrollbar-thumb: rgba(14, 111, 158, 0.25);
+  --lab-header-bg: rgba(255, 255, 255, 0.95);
+  --lab-aside-bg: rgba(245, 247, 250, 0.85);
+  --lab-formula-bg: #eef2f7;
+  --lab-tip-bg: rgba(14, 111, 158, 0.06);
+  --lab-tip-border: rgba(14, 111, 158, 0.15);
+  --lab-font-scale: 1;
+}
+
+/*
+ * =============================================
+ * DARK THEME — Blueprint / Lab Instrument
+ * =============================================
+ */
+.dark {
+  --background: oklch(0.13 0.02 250);
+  --foreground: oklch(0.9 0.01 250);
+  --card: oklch(0.16 0.025 250);
+  --card-foreground: oklch(0.9 0.01 250);
+  --popover: oklch(0.16 0.025 250);
+  --popover-foreground: oklch(0.9 0.01 250);
+  --primary: oklch(0.75 0.15 195);
+  --primary-foreground: oklch(0.13 0.02 250);
+  --secondary: oklch(0.2 0.02 250);
+  --secondary-foreground: oklch(0.8 0.01 250);
+  --muted: oklch(0.2 0.015 250);
+  --muted-foreground: oklch(0.65 0.02 250);
+  --accent: oklch(0.75 0.15 75);
+  --accent-foreground: oklch(0.13 0.02 250);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.95 0 0);
+  --border: oklch(0.3 0.03 250);
+  --input: oklch(0.25 0.025 250);
+  --ring: oklch(0.7 0.15 195);
+  --chart-1: oklch(0.75 0.15 195);
+  --chart-2: oklch(0.65 0.15 260);
+  --chart-3: oklch(0.75 0.15 75);
+  --chart-4: oklch(0.65 0.2 25);
+  --chart-5: oklch(0.7 0.15 150);
+  --sidebar: oklch(0.14 0.02 250);
+  --sidebar-foreground: oklch(0.9 0.01 250);
+  --sidebar-primary: oklch(0.75 0.15 195);
+  --sidebar-primary-foreground: oklch(0.13 0.02 250);
+  --sidebar-accent: oklch(0.2 0.025 250);
+  --sidebar-accent-foreground: oklch(0.9 0.01 250);
+  --sidebar-border: oklch(0.3 0.03 250);
+  --sidebar-ring: oklch(0.7 0.15 195);
+
+  /* Theme-aware custom vars — DARK */
+  --lab-bg: #0a1628;
+  --lab-grid-color: rgba(79, 209, 197, 0.06);
+  --lab-grid-fine: rgba(79, 209, 197, 0.03);
+  --lab-primary: #4fd1c5;
+  --lab-primary-soft: rgba(79, 209, 197, 0.15);
+  --lab-primary-text: #4fd1c5;
+  --lab-secondary: #f6ad55;
+  --lab-secondary-soft: rgba(246, 173, 85, 0.15);
+  --lab-muted: rgba(79, 209, 197, 0.5);
+  --lab-muted-soft: rgba(79, 209, 197, 0.3);
+  --lab-panel-bg: rgba(10, 22, 40, 0.85);
+  --lab-panel-border: rgba(79, 209, 197, 0.2);
+  --lab-success: #48bb78;
+  --lab-danger: #fc8181;
+  --lab-value-text: #4fd1c5;
+  --lab-value-glow: 0 0 8px rgba(79, 209, 197, 0.6);
+  --lab-slider-track: rgba(79, 209, 197, 0.15);
+  --lab-slider-thumb: #4fd1c5;
+  --lab-slider-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
+  --lab-canvas-bg: #0a1628;
+  --lab-canvas-grid: rgba(79, 209, 197, 0.08);
+  --lab-canvas-curve: #4fd1c5;
+  --lab-canvas-point: #f6ad55;
+  --lab-canvas-outlier: #fc8181;
+  --lab-canvas-text: rgba(79, 209, 197, 0.6);
+  --lab-canvas-axis: rgba(79, 209, 197, 0.3);
+  --lab-canvas-band: rgba(79, 209, 197, 0.06);
+  --lab-3d-bg: #0a1628;
+  --lab-scrollbar-track: rgba(10, 22, 40, 0.5);
+  --lab-scrollbar-thumb: rgba(79, 209, 197, 0.3);
+  --lab-header-bg: rgba(10, 22, 40, 0.95);
+  --lab-aside-bg: rgba(10, 22, 40, 0.6);
+  --lab-formula-bg: #0d1f35;
+  --lab-tip-bg: rgba(79, 209, 197, 0.06);
+  --lab-tip-border: rgba(79, 209, 197, 0.15);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-size: calc(16px * var(--lab-font-scale));
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    background-color: var(--lab-bg);
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1920px;
+    }
+  }
+
+  /* Blueprint grid background — theme-aware */
+  .blueprint-grid-fine {
+    background-image:
+      linear-gradient(var(--lab-grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--lab-grid-color) 1px, transparent 1px),
+      linear-gradient(var(--lab-grid-fine) 1px, transparent 1px),
+      linear-gradient(90deg, var(--lab-grid-fine) 1px, transparent 1px);
+    background-size: 40px 40px, 40px 40px, 8px 8px, 8px 8px;
+  }
+
+  /* Glow effects — only visible in dark mode */
+  .glow-cyan {
+    box-shadow: 0 0 8px var(--lab-primary-soft);
+    border-color: var(--lab-primary-soft);
+  }
+
+  /* Panel styling — theme-aware */
+  .panel {
+    background: var(--lab-panel-bg);
+    border: 1px solid var(--lab-panel-border);
+    backdrop-filter: blur(12px);
+  }
+
+  .panel-header {
+    border-bottom: 1px solid var(--lab-panel-border);
+    padding: 0.75rem 1rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--lab-primary-text);
+    font-weight: 600;
+  }
+
+  /* Slider styling — theme-aware */
+  .lab-slider {
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--lab-slider-track);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .lab-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--lab-slider-thumb);
+    box-shadow: var(--lab-slider-shadow);
+    cursor: pointer;
+  }
+
+  .lab-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--lab-slider-thumb);
+    box-shadow: var(--lab-slider-shadow);
+    cursor: pointer;
+    border: none;
+  }
+
+  /* LED display style — theme-aware */
+  .led-display {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--lab-value-text);
+    text-shadow: var(--lab-value-glow);
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  /* Scrollbar — theme-aware */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--lab-scrollbar-track);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--lab-scrollbar-thumb);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--lab-primary);
+    opacity: 0.6;
+  }
+
+  /* Theme-aware utility classes for components */
+  .t-primary { color: var(--lab-primary-text); }
+  .t-secondary { color: var(--lab-secondary); }
+  .t-muted { color: var(--lab-muted); }
+  .t-muted-soft { color: var(--lab-muted-soft); }
+  .t-value { color: var(--lab-value-text); }
+  .t-success { color: var(--lab-success); }
+  .t-danger { color: var(--lab-danger); }
+  .bg-lab { background-color: var(--lab-bg); }
+  .bg-lab-panel { background: var(--lab-panel-bg); }
+  .bg-lab-header { background: var(--lab-header-bg); }
+  .bg-lab-aside { background: var(--lab-aside-bg); }
+  .bg-lab-formula { background: var(--lab-formula-bg); }
+  .bg-lab-tip { background: var(--lab-tip-bg); }
+  .border-lab { border-color: var(--lab-panel-border); }
+  .border-lab-soft { border-color: var(--lab-primary-soft); }
+}
