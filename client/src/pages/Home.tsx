@@ -2,7 +2,7 @@
  * Home Page - 自感与互感数字探究平台
  * 
  * Theme-aware: all colors use CSS custom properties (--lab-*)
- * Supports dark (blueprint) and light (projector) modes
+ * Supports dark (graphite) and light (projector) modes
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -56,6 +56,8 @@ export default function Home() {
   const [showFieldArrows, setShowFieldArrows] = useState(true);
   const [showFieldLines, setShowFieldLines] = useState(false);
   const [fieldThreshold, setFieldThreshold] = useState(0.05);
+  const [fieldLineWidth, setFieldLineWidth] = useState(3.5);
+  const [fieldLineDensity, setFieldLineDensity] = useState(1.0);
 
   // Physics data from 3D viewer
   const [physicsData, setPhysicsData] = useState<PhysicsData | null>(null);
@@ -81,6 +83,8 @@ export default function Home() {
     setShowFieldArrows(true);
     setShowFieldLines(false);
     setFieldThreshold(0.05);
+    setFieldLineWidth(3.5);
+    setFieldLineDensity(1.0);
   }, []);
 
   const handleDualModeChange = useCallback((dual: boolean) => {
@@ -95,12 +99,12 @@ export default function Home() {
   ];
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden blueprint-grid-fine" style={{ backgroundColor: 'var(--lab-bg)' }}>
+    <div className="h-screen flex flex-col overflow-hidden lab-grid-fine" style={{ backgroundColor: 'var(--lab-bg)' }}>
       {/* Welcome overlay */}
       {showWelcome && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
-          style={{ backgroundColor: isDark ? 'rgba(10,22,40,0.9)' : 'rgba(0,0,0,0.4)' }}
+          style={{ backgroundColor: isDark ? 'rgba(25,26,27,0.92)' : 'rgba(0,0,0,0.4)' }}
         >
           <div className="max-w-2xl w-full mx-4 panel rounded-lg overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             <div className="relative h-48 overflow-hidden">
@@ -113,7 +117,7 @@ export default function Home() {
                 <h1 className="text-2xl font-bold text-white" style={{ fontFamily: '"JetBrains Mono", monospace' }}>
                   自感与互感数字探究平台
                 </h1>
-                <p className="text-sm mt-1" style={{ color: isDark ? 'rgba(79,209,197,0.8)' : 'rgba(255,255,255,0.85)' }}>
+                <p className="text-sm mt-1" style={{ color: isDark ? 'rgba(232,232,232,0.82)' : 'rgba(255,255,255,0.85)' }}>
                   Inductance Digital Exploration Lab
                 </p>
               </div>
@@ -140,7 +144,7 @@ export default function Home() {
               </div>
               <button
                 onClick={() => setShowWelcome(false)}
-                className="w-full py-2.5 rounded text-sm font-mono uppercase tracking-wider transition-colors glow-cyan"
+                className="w-full py-2.5 rounded text-sm font-mono uppercase tracking-wider transition-colors glow-neutral"
                 style={{
                   background: 'var(--lab-primary-soft)',
                   border: '1px solid var(--lab-panel-border)',
@@ -228,7 +232,7 @@ export default function Home() {
               background: 'var(--lab-primary-soft)',
               border: '1px solid var(--lab-panel-border)',
             }}
-            title={isDark ? '切换到浅色模式（投影仪）' : '切换到深色模式（蓝图）'}
+            title={isDark ? '切换到浅色模式（投影仪）' : '切换到深色模式'}
           >
             {isDark ? <Sun size={15} /> : <Moon size={15} />}
           </button>
@@ -258,6 +262,8 @@ export default function Home() {
               showFieldArrows={showFieldArrows}
               showFieldLines={showFieldLines}
               fieldThreshold={fieldThreshold}
+              fieldLineWidth={fieldLineWidth}
+              fieldLineDensity={fieldLineDensity}
               physicsData={physicsData}
               onCoil1Change={setCoil1}
               onCoil2Change={setCoil2}
@@ -266,6 +272,8 @@ export default function Home() {
               onShowFieldArrowsChange={setShowFieldArrows}
               onShowFieldLinesChange={setShowFieldLines}
               onFieldThresholdChange={setFieldThreshold}
+              onFieldLineWidthChange={setFieldLineWidth}
+              onFieldLineDensityChange={setFieldLineDensity}
               onReset={handleReset}
             />
           </aside>
@@ -283,6 +291,8 @@ export default function Home() {
                   showFieldArrows={showFieldArrows}
                   showFieldLines={showFieldLines}
                   fieldThreshold={fieldThreshold}
+                  fieldLineWidth={fieldLineWidth}
+                  fieldLineDensity={fieldLineDensity}
                   onPhysicsUpdate={setPhysicsData}
                 />
               </div>
@@ -409,7 +419,7 @@ export default function Home() {
         <span className="mx-3">|</span>
         <span>Biot-Savart: dB = (μ₀/4π)(I·dl×r̂)/r²</span>
         <span className="mx-3">|</span>
-        <span>{isDark ? '蓝图模式' : '投影仪模式'}</span>
+        <span>{isDark ? '深色模式' : '投影仪模式'}</span>
         <span className="ml-auto">Grid: {gridSize}³ = {gridSize ** 3} points</span>
       </footer>
     </div>

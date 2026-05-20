@@ -28,6 +28,8 @@ interface MagneticFieldViewerProps {
   showFieldArrows: boolean;
   showFieldLines: boolean;
   fieldThreshold: number;
+  fieldLineWidth: number;
+  fieldLineDensity: number;
   onPhysicsUpdate?: (data: PhysicsData) => void;
 }
 
@@ -43,8 +45,6 @@ export interface PhysicsData {
 const DARK_SURFACE = 0x191a1b;
 const DARK_GRID = 0x5f6366;
 const DARK_LINE = 0xd8d8d8;
-const DARK_TEXT = 0xe8e8e8;
-const DARK_MID = 0x9d9d9d;
 
 function getFieldColor(ratio: number, isDark = false): [number, number, number] {
   if (isDark) {
@@ -68,7 +68,8 @@ function getFieldColor(ratio: number, isDark = false): [number, number, number] 
 }
 
 export default function MagneticFieldViewer({
-  coil1, coil2, gridSize, showFieldArrows, showFieldLines, fieldThreshold, onPhysicsUpdate,
+  coil1, coil2, gridSize, showFieldArrows, showFieldLines, fieldThreshold,
+  fieldLineWidth, fieldLineDensity, onPhysicsUpdate,
 }: MagneticFieldViewerProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -177,7 +178,18 @@ export default function MagneticFieldViewer({
     };
 
     if (showFieldArrows || showFieldLines) {
-      const fieldObjects = renderField(coils, gridSize, extent, showFieldArrows, showFieldLines, fieldThreshold, isDark, viewport);
+      const fieldObjects = renderField(
+        coils,
+        gridSize,
+        extent,
+        showFieldArrows,
+        showFieldLines,
+        fieldThreshold,
+        isDark,
+        viewport,
+        fieldLineWidth,
+        fieldLineDensity
+      );
       for (const obj of fieldObjects) {
         scene.add(obj);
         objectsRef.current.push(obj);
@@ -196,7 +208,7 @@ export default function MagneticFieldViewer({
     maxB = Math.sqrt(Bcenter[0] ** 2 + Bcenter[1] ** 2 + Bcenter[2] ** 2);
     onPhysicsUpdate?.({ L1, L2, M, k, flux, maxB });
     setIsComputing(false);
-  }, [coil1, coil2, gridSize, showFieldArrows, showFieldLines, fieldThreshold, isDark]);
+  }, [coil1, coil2, gridSize, showFieldArrows, showFieldLines, fieldThreshold, fieldLineWidth, fieldLineDensity, isDark]);
 
   return (
     <div className="relative w-full h-full">
@@ -288,7 +300,9 @@ function createCoilMesh(coil: CoilParams, isDark: boolean): THREE.Group {
 function renderField(
   coils: CoilParams[], gridSize: number, extent: number,
   showArrows: boolean, showLines: boolean, threshold: number, isDark: boolean,
-  viewport: { width: number; height: number }
+  viewport: { width: number; height: number },
+  fieldLineWidth: number,
+  fieldLineDensity: number
 ): THREE.Object3D[] {
   const objects: THREE.Object3D[] = [];
   const step = (2 * extent) / (gridSize - 1);
@@ -352,7 +366,7 @@ function renderField(
   }
 
   if (showLines) {
-    const fieldLineObjects = renderFieldLinesSymmetric(coils, extent, isDark, viewport);
+    const fieldLineObjects = renderFieldLinesSymmetric(coils, extent, isDark, viewport, fieldLineWidth, fieldLineDensity);
     objects.push(...fieldLineObjects);
   }
 
@@ -360,23 +374,25 @@ function renderField(
 }
 
 function renderFieldLinesSymmetric(
-  coils: CoilParams[], extent: number, isDark: boolean, viewport: { width: number; height: number }
+  coils: CoilParams[], extent: number, isDark: boolean, viewport: { width: number; height: number },
+  fieldLineWidth: number, fieldLineDensity: number
 ): THREE.Object3D[] {
   const objects: THREE.Object3D[] = [];
   const R = Math.max(...coils.map(coil => coil.radius));
   const targetSpacing = Math.min(Math.max(extent * 0.075, R * 0.08), R * 0.22);
+  const densityScale = Math.min(Math.max(fieldLineDensity, 0.5), 2);
   const { lines } = generateSymmetricFieldLines(coils, {
     extent,
     targetSpacing,
-    maxLines: 36,
+    maxLines: Math.round(36 * densityScale),
     maxSteps: 900,
     minAcceptedSamples: 16,
     minFieldMagnitude: 1e-15,
     boundaryExtent: extent * 1.8,
-    maxVertices: 16000,
+    maxVertices: Math.round(16000 * densityScale),
     copies: 12,
-    radialSeedCount: 7,
-    zSeedLevels: 3,
+    radialSeedCount: Math.round(7 * densityScale),
+    zSeedLevels: densityScale > 1.5 ? 4 : 3,
   });
   const lineColor = isDark ? DARK_LINE : 0x0e6f9e;
   const baseColor = new THREE.Color(lineColor);
@@ -409,7 +425,7 @@ function renderFieldLinesSymmetric(
       opacity: isDark ? 0.55 : 0.65,
       worldUnits: false,
       resolution: new THREE.Vector2(viewport.width, viewport.height),
-      linewidth: 3.5,
+      linewidth: fieldLineWidth,
     } as ConstructorParameters<typeof LineMaterial>[0] & { linewidth: number });
     const wideLine = new Line2(geo, mat);
     wideLine.computeLineDistances();

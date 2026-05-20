@@ -45,7 +45,7 @@ function Formula({ children }: { children: string }) {
   );
 }
 
-function Tip({ color, children }: { color: string; children: React.ReactNode }) {
+function Tip({ children }: { children: React.ReactNode }) {
   return (
     <div className="mt-2 p-2 rounded text-xs" style={{
       background: 'var(--lab-tip-bg)',
@@ -100,7 +100,7 @@ export default function LearningResources() {
           <li><strong>L ∝ R²</strong> — 自感与半径的平方成正比</li>
           <li><strong>L ∝ 1/l</strong> — 自感与长度成反比</li>
         </ul>
-        <Tip color="amber">
+        <Tip>
           实验提示：通过改变 N 或 R，测量 L 的变化，可以验证上述比例关系。
           使用幂律拟合 y = Ax^b，期望得到 b ≈ 2。
         </Tip>
@@ -132,7 +132,7 @@ export default function LearningResources() {
         <p>对于互感耦合的两个线圈：</p>
         <Formula>ε₂ = -M(dI₁/dt)</Formula>
         <p>这是变压器、无线充电、电磁炉等技术的物理基础。</p>
-        <Tip color="purple">
+        <Tip>
           思考题：为什么变压器的铁芯能提高耦合系数 k？
           提示：铁芯的相对磁导率 μᵣ {'>'}{'>'}  1，使磁通量更集中。
         </Tip>
@@ -154,7 +154,7 @@ export default function LearningResources() {
             <p>使用 Vandermonde 矩阵求解。注意过拟合：如果高次多项式的 R² 增长不到 1%，应选择低次模型。</p>
           </div>
         </div>
-        <Tip color="blue">
+        <Tip>
           物理优先：即使高次多项式 R² 更高，也应优先选择有物理意义的模型。
           例如 L ∝ N² 应选幂律而非三次多项式。
         </Tip>
@@ -181,7 +181,7 @@ export default function LearningResources() {
           <ul className="list-disc list-inside space-y-1 ml-2">
             <li>点击顶部导航栏右侧的太阳/月亮图标切换主题</li>
             <li>浅色模式针对投影仪演示优化，提高对比度和可读性</li>
-            <li>深色模式为蓝图风格，适合个人学习和屏幕阅读</li>
+            <li>深色模式为黑灰高对比风格，适合个人学习和屏幕阅读</li>
           </ul>
         </div>
       </Topic>

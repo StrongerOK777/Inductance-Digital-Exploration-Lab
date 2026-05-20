@@ -67,7 +67,7 @@ export default function DataFittingPanel() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const bgColor = getCSSVar('--lab-canvas-bg') || (isDark ? '#0a1628' : '#eef2f7');
+    const bgColor = getCSSVar('--lab-canvas-bg') || (isDark ? '#191A1B' : '#eef2f7');
     const gridColor = getCSSVar('--lab-canvas-grid') || 'rgba(0,0,0,0.1)';
     const axisColor = getCSSVar('--lab-canvas-axis') || 'rgba(0,0,0,0.3)';
     const textColor = getCSSVar('--lab-canvas-text') || '#333';
@@ -221,8 +221,8 @@ export default function DataFittingPanel() {
       ctx.font = '11px "JetBrains Mono"';
       const textWidth = ctx.measureText(legendText).width;
       const lx = pad.left + 10, ly = pad.top + 5;
-      ctx.fillStyle = isDark ? 'rgba(10,22,40,0.85)' : 'rgba(255,255,255,0.9)';
-      ctx.strokeStyle = isDark ? 'rgba(79,209,197,0.3)' : 'rgba(14,111,158,0.25)';
+      ctx.fillStyle = isDark ? 'rgba(31,32,33,0.9)' : 'rgba(255,255,255,0.9)';
+      ctx.strokeStyle = isDark ? 'rgba(232,232,232,0.18)' : 'rgba(14,111,158,0.25)';
       ctx.lineWidth = 1;
       ctx.fillRect(lx, ly, textWidth + 20, 24);
       ctx.strokeRect(lx, ly, textWidth + 20, 24);
@@ -238,7 +238,7 @@ export default function DataFittingPanel() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const bgColor = getCSSVar('--lab-canvas-bg') || (isDark ? '#0a1628' : '#eef2f7');
+    const bgColor = getCSSVar('--lab-canvas-bg') || (isDark ? '#191A1B' : '#eef2f7');
     const axisColor = getCSSVar('--lab-canvas-axis') || 'rgba(0,0,0,0.3)';
     const textColor = getCSSVar('--lab-canvas-text') || '#333';
     const pointColor = getCSSVar('--lab-canvas-point') || '#b45309';

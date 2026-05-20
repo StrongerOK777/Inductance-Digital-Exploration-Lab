@@ -126,79 +126,79 @@
 
 /*
  * =============================================
- * DARK THEME — Blueprint / Lab Instrument
+ * DARK THEME — Neutral graphite lab
  * =============================================
  */
 .dark {
-  --background: oklch(0.13 0.02 250);
-  --foreground: oklch(0.9 0.01 250);
-  --card: oklch(0.16 0.025 250);
-  --card-foreground: oklch(0.9 0.01 250);
-  --popover: oklch(0.16 0.025 250);
-  --popover-foreground: oklch(0.9 0.01 250);
-  --primary: oklch(0.75 0.15 195);
-  --primary-foreground: oklch(0.13 0.02 250);
-  --secondary: oklch(0.2 0.02 250);
-  --secondary-foreground: oklch(0.8 0.01 250);
-  --muted: oklch(0.2 0.015 250);
-  --muted-foreground: oklch(0.65 0.02 250);
-  --accent: oklch(0.75 0.15 75);
-  --accent-foreground: oklch(0.13 0.02 250);
-  --destructive: oklch(0.65 0.2 25);
-  --destructive-foreground: oklch(0.95 0 0);
-  --border: oklch(0.3 0.03 250);
-  --input: oklch(0.25 0.025 250);
-  --ring: oklch(0.7 0.15 195);
-  --chart-1: oklch(0.75 0.15 195);
-  --chart-2: oklch(0.65 0.15 260);
-  --chart-3: oklch(0.75 0.15 75);
-  --chart-4: oklch(0.65 0.2 25);
-  --chart-5: oklch(0.7 0.15 150);
-  --sidebar: oklch(0.14 0.02 250);
-  --sidebar-foreground: oklch(0.9 0.01 250);
-  --sidebar-primary: oklch(0.75 0.15 195);
-  --sidebar-primary-foreground: oklch(0.13 0.02 250);
-  --sidebar-accent: oklch(0.2 0.025 250);
-  --sidebar-accent-foreground: oklch(0.9 0.01 250);
-  --sidebar-border: oklch(0.3 0.03 250);
-  --sidebar-ring: oklch(0.7 0.15 195);
+  --background: oklch(0.16 0 0);
+  --foreground: oklch(0.92 0 0);
+  --card: oklch(0.19 0 0);
+  --card-foreground: oklch(0.92 0 0);
+  --popover: oklch(0.19 0 0);
+  --popover-foreground: oklch(0.92 0 0);
+  --primary: oklch(0.82 0 0);
+  --primary-foreground: oklch(0.16 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.86 0 0);
+  --muted: oklch(0.25 0 0);
+  --muted-foreground: oklch(0.68 0 0);
+  --accent: oklch(0.72 0 0);
+  --accent-foreground: oklch(0.16 0 0);
+  --destructive: oklch(0.62 0 0);
+  --destructive-foreground: oklch(0.96 0 0);
+  --border: oklch(0.34 0 0);
+  --input: oklch(0.27 0 0);
+  --ring: oklch(0.72 0 0);
+  --chart-1: oklch(0.82 0 0);
+  --chart-2: oklch(0.72 0 0);
+  --chart-3: oklch(0.62 0 0);
+  --chart-4: oklch(0.52 0 0);
+  --chart-5: oklch(0.42 0 0);
+  --sidebar: oklch(0.17 0 0);
+  --sidebar-foreground: oklch(0.92 0 0);
+  --sidebar-primary: oklch(0.82 0 0);
+  --sidebar-primary-foreground: oklch(0.16 0 0);
+  --sidebar-accent: oklch(0.25 0 0);
+  --sidebar-accent-foreground: oklch(0.9 0 0);
+  --sidebar-border: oklch(0.34 0 0);
+  --sidebar-ring: oklch(0.72 0 0);
 
   /* Theme-aware custom vars — DARK */
-  --lab-bg: #0a1628;
-  --lab-grid-color: rgba(79, 209, 197, 0.06);
-  --lab-grid-fine: rgba(79, 209, 197, 0.03);
-  --lab-primary: #4fd1c5;
-  --lab-primary-soft: rgba(79, 209, 197, 0.15);
-  --lab-primary-text: #4fd1c5;
-  --lab-secondary: #f6ad55;
-  --lab-secondary-soft: rgba(246, 173, 85, 0.15);
-  --lab-muted: rgba(79, 209, 197, 0.5);
-  --lab-muted-soft: rgba(79, 209, 197, 0.3);
-  --lab-panel-bg: rgba(10, 22, 40, 0.85);
-  --lab-panel-border: rgba(79, 209, 197, 0.2);
-  --lab-success: #48bb78;
-  --lab-danger: #fc8181;
-  --lab-value-text: #4fd1c5;
-  --lab-value-glow: 0 0 8px rgba(79, 209, 197, 0.6);
-  --lab-slider-track: rgba(79, 209, 197, 0.15);
-  --lab-slider-thumb: #4fd1c5;
-  --lab-slider-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
-  --lab-canvas-bg: #0a1628;
-  --lab-canvas-grid: rgba(79, 209, 197, 0.08);
-  --lab-canvas-curve: #4fd1c5;
-  --lab-canvas-point: #f6ad55;
-  --lab-canvas-outlier: #fc8181;
-  --lab-canvas-text: rgba(79, 209, 197, 0.6);
-  --lab-canvas-axis: rgba(79, 209, 197, 0.3);
-  --lab-canvas-band: rgba(79, 209, 197, 0.06);
-  --lab-3d-bg: #0a1628;
-  --lab-scrollbar-track: rgba(10, 22, 40, 0.5);
-  --lab-scrollbar-thumb: rgba(79, 209, 197, 0.3);
-  --lab-header-bg: rgba(10, 22, 40, 0.95);
-  --lab-aside-bg: rgba(10, 22, 40, 0.6);
-  --lab-formula-bg: #0d1f35;
-  --lab-tip-bg: rgba(79, 209, 197, 0.06);
-  --lab-tip-border: rgba(79, 209, 197, 0.15);
+  --lab-bg: #191A1B;
+  --lab-grid-color: rgba(232, 232, 232, 0.055);
+  --lab-grid-fine: rgba(232, 232, 232, 0.028);
+  --lab-primary: #d8d8d8;
+  --lab-primary-soft: rgba(216, 216, 216, 0.12);
+  --lab-primary-text: #eeeeee;
+  --lab-secondary: #bdbdbd;
+  --lab-secondary-soft: rgba(189, 189, 189, 0.12);
+  --lab-muted: rgba(232, 232, 232, 0.62);
+  --lab-muted-soft: rgba(232, 232, 232, 0.38);
+  --lab-panel-bg: rgba(31, 32, 33, 0.9);
+  --lab-panel-border: rgba(232, 232, 232, 0.16);
+  --lab-success: #d4d4d4;
+  --lab-danger: #a8a8a8;
+  --lab-value-text: #f1f1f1;
+  --lab-value-glow: 0 0 6px rgba(232, 232, 232, 0.16);
+  --lab-slider-track: rgba(232, 232, 232, 0.16);
+  --lab-slider-thumb: #d8d8d8;
+  --lab-slider-shadow: 0 0 7px rgba(232, 232, 232, 0.22);
+  --lab-canvas-bg: #191A1B;
+  --lab-canvas-grid: rgba(232, 232, 232, 0.08);
+  --lab-canvas-curve: #d8d8d8;
+  --lab-canvas-point: #bdbdbd;
+  --lab-canvas-outlier: #8f8f8f;
+  --lab-canvas-text: rgba(232, 232, 232, 0.66);
+  --lab-canvas-axis: rgba(232, 232, 232, 0.28);
+  --lab-canvas-band: rgba(232, 232, 232, 0.06);
+  --lab-3d-bg: #191A1B;
+  --lab-scrollbar-track: rgba(25, 26, 27, 0.55);
+  --lab-scrollbar-thumb: rgba(232, 232, 232, 0.26);
+  --lab-header-bg: rgba(25, 26, 27, 0.96);
+  --lab-aside-bg: rgba(25, 26, 27, 0.78);
+  --lab-formula-bg: #222324;
+  --lab-tip-bg: rgba(232, 232, 232, 0.06);
+  --lab-tip-border: rgba(232, 232, 232, 0.14);
 }
 
 @layer base {
@@ -255,8 +255,8 @@
     }
   }
 
-  /* Blueprint grid background — theme-aware */
-  .blueprint-grid-fine {
+  /* Lab grid background - theme-aware */
+  .lab-grid-fine {
     background-image:
       linear-gradient(var(--lab-grid-color) 1px, transparent 1px),
       linear-gradient(90deg, var(--lab-grid-color) 1px, transparent 1px),
@@ -266,7 +266,7 @@
   }
 
   /* Glow effects — only visible in dark mode */
-  .glow-cyan {
+  .glow-neutral {
     box-shadow: 0 0 8px var(--lab-primary-soft);
     border-color: var(--lab-primary-soft);
   }

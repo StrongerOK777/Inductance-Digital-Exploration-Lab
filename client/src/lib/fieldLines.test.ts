@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateFieldLines } from '@/lib/fieldLines';
+import { generateFieldLines, generateSymmetricFieldLines, resampleFieldLine } from '@/lib/fieldLines';
 import {
   calculateBField,
   CoilParams,
@@ -40,6 +40,12 @@ function minDistanceBetweenDifferentLines(lines: { points: Vec3[] }[], stride = 
     }
   }
   return min;
+}
+
+function radiusFromCenter(point: Vec3, center: Vec3): number {
+  const dx = point[0] - center[0];
+  const dy = point[1] - center[1];
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 describe('field line generation', () => {
@@ -135,6 +141,73 @@ describe('field line generation', () => {
       for (const line of result.lines) {
         for (const point of line.points) expectFinitePoint(point, 0.81);
       }
+    }
+  });
+
+  it('generates complete rotational families for centered symmetric field lines', () => {
+    const coil: CoilParams = { ...DEFAULT_COIL, radius: 0.1, current: 1, turns: 1, pitch: 0 };
+    const result = generateSymmetricFieldLines([coil], {
+      extent: 0.3,
+      targetSpacing: 0.024,
+      maxLines: 16,
+      maxSteps: 240,
+      minAcceptedSamples: 10,
+      boundaryExtent: 0.54,
+      segmentsPerTurn: 32,
+      copies: 8,
+      radialSeedCount: 5,
+      zSeedLevels: 2,
+    });
+
+    expect(result.lines.length).toBeGreaterThanOrEqual(8);
+    expect(result.lines.length % 8).toBe(0);
+
+    const firstFamily = result.lines.filter(line => line.familyId === result.lines[0].familyId);
+    expect(firstFamily).toHaveLength(8);
+    expect(firstFamily.map(line => line.copyIndex).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+
+    const center = firstFamily[0].symmetryCenter ?? [0, 0, 0];
+    for (let i = 1; i < firstFamily.length; i++) {
+      expect(firstFamily[i].points.length).toBe(firstFamily[0].points.length);
+      const r0 = radiusFromCenter(firstFamily[0].points[0], center);
+      const ri = radiusFromCenter(firstFamily[i].points[0], center);
+      expect(Math.abs(r0 - ri)).toBeLessThan(1e-8);
+    }
+  });
+
+  it('uses the active coil system center for symmetric dual-coil lines', () => {
+    const base: CoilParams = {
+      ...DEFAULT_COIL,
+      radius: 0.1,
+      current: 1,
+      turns: 4,
+      pitch: 0.006,
+    };
+    const result = generateSymmetricFieldLines([base, { ...base, position: [0, 0, 0.2] }], {
+      extent: 0.45,
+      targetSpacing: 0.032,
+      maxLines: 12,
+      maxSteps: 180,
+      minAcceptedSamples: 8,
+      boundaryExtent: 0.81,
+      segmentsPerTurn: 14,
+      copies: 6,
+      radialSeedCount: 4,
+      zSeedLevels: 2,
+    });
+
+    expect(result.lines.length).toBeGreaterThan(0);
+    expect(result.lines[0].symmetryCenter?.[2]).toBeCloseTo(0.1, 2);
+  });
+
+  it('resamples line input so wide-line geometry avoids long coarse segments', () => {
+    const points: Vec3[] = [[0, 0, 0], [0.2, 0, 0], [0.2, 0.2, 0]];
+    const resampled = resampleFieldLine(points, 0.025);
+
+    expect(resampled.length).toBeGreaterThan(points.length);
+    for (let i = 0; i < resampled.length - 1; i++) {
+      const d = vecMag(segmentDirection(resampled[i], resampled[i + 1]));
+      expect(d).toBeLessThanOrEqual(0.025 + 1e-12);
     }
   });
 
