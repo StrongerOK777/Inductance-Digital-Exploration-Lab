@@ -6,8 +6,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { useTheme } from '@/contexts/ThemeContext';
-import { generateFieldLines } from '@/lib/fieldLines';
+import { generateSymmetricFieldLines, resampleFieldLine } from '@/lib/fieldLines';
 import {
   CoilParams,
   generateCoilSegments,
@@ -37,7 +40,18 @@ export interface PhysicsData {
   maxB: number;
 }
 
-function getFieldColor(ratio: number): [number, number, number] {
+const DARK_SURFACE = 0x191a1b;
+const DARK_GRID = 0x5f6366;
+const DARK_LINE = 0xd8d8d8;
+const DARK_TEXT = 0xe8e8e8;
+const DARK_MID = 0x9d9d9d;
+
+function getFieldColor(ratio: number, isDark = false): [number, number, number] {
+  if (isDark) {
+    const v = 0.42 + Math.min(Math.max(ratio, 0), 1) * 0.46;
+    return [v, v, v];
+  }
+
   if (ratio < 0.25) {
     const t = ratio / 0.25;
     return [0.1, 0.2 + t * 0.6, 0.8 + t * 0.2];
@@ -76,7 +90,7 @@ export default function MagneticFieldViewer({
     const height = container.clientHeight;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(isDark ? 0x0a1628 : 0xe8edf4);
+    scene.background = new THREE.Color(isDark ? DARK_SURFACE : 0xe8edf4);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.001, 100);
@@ -97,11 +111,11 @@ export default function MagneticFieldViewer({
     controls.maxDistance = 5;
     controlsRef.current = controls;
 
-    scene.add(new THREE.AmbientLight(isDark ? 0x1a3a5a : 0x8899aa, isDark ? 1.0 : 1.5));
-    const dirLight = new THREE.DirectionalLight(isDark ? 0x4fd1c5 : 0xffffff, isDark ? 0.8 : 1.0);
+    scene.add(new THREE.AmbientLight(isDark ? 0x6f6f6f : 0x8899aa, isDark ? 1.15 : 1.5));
+    const dirLight = new THREE.DirectionalLight(isDark ? 0xe6e6e6 : 0xffffff, isDark ? 0.85 : 1.0);
     dirLight.position.set(1, 2, 1);
     scene.add(dirLight);
-    const pointLight = new THREE.PointLight(isDark ? 0x63b3ed : 0x88aacc, 0.5, 3);
+    const pointLight = new THREE.PointLight(isDark ? 0xb8b8b8 : 0x88aacc, 0.5, 3);
     pointLight.position.set(-0.5, 0.5, 0.5);
     scene.add(pointLight);
 
@@ -120,6 +134,7 @@ export default function MagneticFieldViewer({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      updateWideLineResolution(objectsRef.current, w, h);
     };
     window.addEventListener('resize', handleResize);
 
@@ -142,23 +157,7 @@ export default function MagneticFieldViewer({
 
     for (const obj of objectsRef.current) {
       scene.remove(obj);
-      if (obj instanceof THREE.Mesh || obj instanceof THREE.InstancedMesh) {
-        obj.geometry.dispose();
-        if (obj.material instanceof THREE.Material) obj.material.dispose();
-        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-      }
-      if (obj instanceof THREE.Line) {
-        obj.geometry.dispose();
-        if (obj.material instanceof THREE.Material) obj.material.dispose();
-      }
-      if (obj instanceof THREE.Group) {
-        obj.traverse(child => {
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-            if (child.material instanceof THREE.Material) child.material.dispose();
-          }
-        });
-      }
+      disposeObject3D(obj);
     }
     objectsRef.current = [];
 
@@ -166,15 +165,19 @@ export default function MagneticFieldViewer({
     if (coil2) coils.push(coil2);
 
     for (const coil of coils) {
-      const group = createCoilMesh(coil);
+      const group = createCoilMesh(coil, isDark);
       scene.add(group);
       objectsRef.current.push(group);
     }
 
     const extent = Math.max(coil1.radius * 3, coil2 ? Math.abs(coil2.position[2]) + coil2.radius * 2 : 0.2, 0.25);
+    const viewport = {
+      width: containerRef.current?.clientWidth ?? 1,
+      height: containerRef.current?.clientHeight ?? 1,
+    };
 
     if (showFieldArrows || showFieldLines) {
-      const fieldObjects = renderField(coils, gridSize, extent, showFieldArrows, showFieldLines, fieldThreshold, isDark);
+      const fieldObjects = renderField(coils, gridSize, extent, showFieldArrows, showFieldLines, fieldThreshold, isDark, viewport);
       for (const obj of fieldObjects) {
         scene.add(obj);
         objectsRef.current.push(obj);
@@ -212,8 +215,8 @@ export default function MagneticFieldViewer({
 }
 
 function createGrid(scene: THREE.Scene, isDark: boolean) {
-  const gridColor = isDark ? 0x4fd1c5 : 0x3b82f6;
-  const gridOpacity = isDark ? 0.06 : 0.12;
+  const gridColor = isDark ? DARK_GRID : 0x3b82f6;
+  const gridOpacity = isDark ? 0.12 : 0.12;
   const gridMat = new THREE.LineBasicMaterial({ color: gridColor, transparent: true, opacity: gridOpacity });
   const gridSize = 1;
   const divisions = 20;
@@ -238,24 +241,24 @@ function createGrid(scene: THREE.Scene, isDark: boolean) {
     0, 0, 0, 0, 0, axisLen,
   ], 3));
   const axisColors = isDark
-    ? [1, 0.3, 0.3, 1, 0.3, 0.3, 0.3, 0.8, 0.4, 0.3, 0.8, 0.4, 0.4, 0.7, 1, 0.4, 0.7, 1]
+    ? [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.72, 0.72, 0.72, 0.72, 0.72, 0.72, 0.56, 0.56, 0.56, 0.56, 0.56, 0.56]
     : [0.9, 0.2, 0.2, 0.9, 0.2, 0.2, 0.15, 0.6, 0.3, 0.15, 0.6, 0.3, 0.2, 0.4, 0.8, 0.2, 0.4, 0.8];
   axisGeo.setAttribute('color', new THREE.Float32BufferAttribute(axisColors, 3));
   scene.add(new THREE.LineSegments(axisGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 })));
 
   const tipGeo = new THREE.SphereGeometry(0.006, 8, 8);
-  const xTip = new THREE.Mesh(tipGeo, new THREE.MeshBasicMaterial({ color: isDark ? 0xfc8181 : 0xdc2626 }));
+  const xTip = new THREE.Mesh(tipGeo, new THREE.MeshBasicMaterial({ color: isDark ? 0xe5e5e5 : 0xdc2626 }));
   xTip.position.set(axisLen, 0, 0);
   scene.add(xTip);
-  const yTip = new THREE.Mesh(tipGeo.clone(), new THREE.MeshBasicMaterial({ color: isDark ? 0x48bb78 : 0x16a34a }));
+  const yTip = new THREE.Mesh(tipGeo.clone(), new THREE.MeshBasicMaterial({ color: isDark ? 0xb8b8b8 : 0x16a34a }));
   yTip.position.set(0, axisLen, 0);
   scene.add(yTip);
-  const zTip = new THREE.Mesh(tipGeo.clone(), new THREE.MeshBasicMaterial({ color: isDark ? 0x63b3ed : 0x2563eb }));
+  const zTip = new THREE.Mesh(tipGeo.clone(), new THREE.MeshBasicMaterial({ color: isDark ? 0x8f8f8f : 0x2563eb }));
   zTip.position.set(0, 0, axisLen);
   scene.add(zTip);
 }
 
-function createCoilMesh(coil: CoilParams): THREE.Group {
+function createCoilMesh(coil: CoilParams, isDark: boolean): THREE.Group {
   const group = new THREE.Group();
   const segments = generateCoilSegments(coil, 128);
   if (segments.length < 2) return group;
@@ -266,9 +269,11 @@ function createCoilMesh(coil: CoilParams): THREE.Group {
   const wireRadius = Math.min(coil.radius * 0.05, 0.006);
   const tubeGeo = new THREE.TubeGeometry(curve, Math.min(segments.length, 256), wireRadius, 8, coil.turns === 1);
 
-  const color = coil.current >= 0
-    ? new THREE.Color(0.95, 0.6, 0.2)
-    : new THREE.Color(0.3, 0.7, 0.95);
+  const color = isDark
+    ? new THREE.Color(coil.current >= 0 ? 0xd0d0d0 : 0x8a8a8a)
+    : coil.current >= 0
+      ? new THREE.Color(0.95, 0.6, 0.2)
+      : new THREE.Color(0.3, 0.7, 0.95);
 
   group.add(new THREE.Mesh(tubeGeo, new THREE.MeshStandardMaterial({
     color, emissive: color, emissiveIntensity: 0.4, metalness: 0.7, roughness: 0.3,
@@ -282,7 +287,8 @@ function createCoilMesh(coil: CoilParams): THREE.Group {
 
 function renderField(
   coils: CoilParams[], gridSize: number, extent: number,
-  showArrows: boolean, showLines: boolean, threshold: number, isDark: boolean
+  showArrows: boolean, showLines: boolean, threshold: number, isDark: boolean,
+  viewport: { width: number; height: number }
 ): THREE.Object3D[] {
   const objects: THREE.Object3D[] = [];
   const step = (2 * extent) / (gridSize - 1);
@@ -336,7 +342,7 @@ function renderField(
       dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      const [r, g, b] = getFieldColor(ratio);
+      const [r, g, b] = getFieldColor(ratio, isDark);
       color.setRGB(r, g, b);
       mesh.setColorAt(i, color);
     }
@@ -346,20 +352,20 @@ function renderField(
   }
 
   if (showLines) {
-    const fieldLineObjects = renderFieldLinesAdaptive(coils, extent, isDark);
+    const fieldLineObjects = renderFieldLinesSymmetric(coils, extent, isDark, viewport);
     objects.push(...fieldLineObjects);
   }
 
   return objects;
 }
 
-function renderFieldLinesAdaptive(
-  coils: CoilParams[], extent: number, isDark: boolean
+function renderFieldLinesSymmetric(
+  coils: CoilParams[], extent: number, isDark: boolean, viewport: { width: number; height: number }
 ): THREE.Object3D[] {
   const objects: THREE.Object3D[] = [];
   const R = Math.max(...coils.map(coil => coil.radius));
   const targetSpacing = Math.min(Math.max(extent * 0.075, R * 0.08), R * 0.22);
-  const { lines } = generateFieldLines(coils, {
+  const { lines } = generateSymmetricFieldLines(coils, {
     extent,
     targetSpacing,
     maxLines: 36,
@@ -368,19 +374,23 @@ function renderFieldLinesAdaptive(
     minFieldMagnitude: 1e-15,
     boundaryExtent: extent * 1.8,
     maxVertices: 16000,
+    copies: 12,
+    radialSeedCount: 7,
+    zSeedLevels: 3,
   });
-  const lineColor = isDark ? 0x4fd1c5 : 0x0e6f9e;
+  const lineColor = isDark ? DARK_LINE : 0x0e6f9e;
   const baseColor = new THREE.Color(lineColor);
 
   for (const line of lines) {
+    const smoothPoints = smoothLinePoints(line.points, targetSpacing * 0.35);
     const positions: number[] = [];
     const colors: number[] = [];
 
-    for (let i = 0; i < line.points.length; i++) {
-      const p = line.points[i];
+    for (let i = 0; i < smoothPoints.length; i++) {
+      const p = smoothPoints[i];
       positions.push(p[0], p[1], p[2]);
 
-      const t = i / (line.points.length - 1);
+      const t = i / (smoothPoints.length - 1);
       const fade = Math.min(1, Math.min(t, 1 - t) * 8);
       colors.push(
         baseColor.r * (0.3 + 0.7 * fade),
@@ -389,15 +399,21 @@ function renderFieldLinesAdaptive(
       );
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    const mat = new THREE.LineBasicMaterial({
+    const geo = new LineGeometry();
+    geo.setPositions(positions);
+    geo.setColors(colors);
+    const mat = new LineMaterial({
+      color: baseColor,
       vertexColors: true,
       transparent: true,
       opacity: isDark ? 0.55 : 0.65,
-    });
-    objects.push(new THREE.Line(geo, mat));
+      worldUnits: false,
+      resolution: new THREE.Vector2(viewport.width, viewport.height),
+      linewidth: 3.5,
+    } as ConstructorParameters<typeof LineMaterial>[0] & { linewidth: number });
+    const wideLine = new Line2(geo, mat);
+    wideLine.computeLineDistances();
+    objects.push(wideLine);
   }
 
   const arrowPlacements: { position: Vec3; direction: THREE.Vector3 }[] = [];
@@ -431,4 +447,38 @@ function renderFieldLinesAdaptive(
   }
 
   return objects;
+}
+
+function smoothLinePoints(points: Vec3[], maxSegmentLength: number): Vec3[] {
+  const resampled = resampleFieldLine(points, maxSegmentLength);
+  if (resampled.length < 4) return resampled;
+  const vectors = resampled.map(point => new THREE.Vector3(point[0], point[1], point[2]));
+  const closed = vectors[0].distanceTo(vectors[vectors.length - 1]) < maxSegmentLength * 1.2;
+  const curve = new THREE.CatmullRomCurve3(vectors, closed, 'centripetal', 0.35);
+  const samples = Math.min(480, Math.max(vectors.length * 2, 24));
+  return curve.getSpacedPoints(samples).map(point => [point.x, point.y, point.z]);
+}
+
+function disposeObject3D(obj: THREE.Object3D) {
+  obj.traverse(child => {
+    const maybeGeometry = (child as { geometry?: { dispose?: () => void } }).geometry;
+    maybeGeometry?.dispose?.();
+    const maybeMaterial = (child as { material?: THREE.Material | THREE.Material[] }).material;
+    if (Array.isArray(maybeMaterial)) {
+      maybeMaterial.forEach(material => material.dispose());
+    } else {
+      maybeMaterial?.dispose();
+    }
+  });
+}
+
+function updateWideLineResolution(objects: THREE.Object3D[], width: number, height: number) {
+  for (const obj of objects) {
+    obj.traverse(child => {
+      const material = (child as { material?: unknown }).material;
+      if (material instanceof LineMaterial) {
+        material.resolution.set(width, height);
+      }
+    });
+  }
 }

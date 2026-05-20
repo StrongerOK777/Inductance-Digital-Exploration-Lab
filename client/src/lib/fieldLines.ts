@@ -14,6 +14,11 @@ export interface FieldLine {
   points: FieldLinePoint[];
   arrowIndices: number[];
   seed: Vec3;
+  familyId?: number;
+  copyIndex?: number;
+  copyCount?: number;
+  symmetryCenter?: Vec3;
+  canonicalSeed?: Vec3;
 }
 
 export interface FieldLineOptions {
@@ -27,6 +32,13 @@ export interface FieldLineOptions {
   boundaryExtent?: number;
   maxVertices?: number;
   segmentsPerTurn?: number;
+}
+
+export interface FieldLineSymmetryOptions extends FieldLineOptions {
+  center?: Vec3;
+  copies?: number;
+  radialSeedCount?: number;
+  zSeedLevels?: number;
 }
 
 export interface FieldLineResult {
@@ -63,6 +75,10 @@ function distSq(a: Vec3, b: Vec3): number {
   return dx * dx + dy * dy + dz * dz;
 }
 
+function distance(a: Vec3, b: Vec3): number {
+  return Math.sqrt(distSq(a, b));
+}
+
 function add(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
@@ -77,6 +93,14 @@ function isFiniteVec(v: Vec3): boolean {
 
 function insideBoundary(p: Vec3, boundaryExtent: number): boolean {
   return Math.abs(p[0]) <= boundaryExtent && Math.abs(p[1]) <= boundaryExtent && Math.abs(p[2]) <= boundaryExtent;
+}
+
+function rotateAroundCenterZ(p: Vec3, center: Vec3, angle: number): Vec3 {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = p[0] - center[0];
+  const dy = p[1] - center[1];
+  return [center[0] + dx * cos - dy * sin, center[1] + dx * sin + dy * cos, p[2]];
 }
 
 function segmentsPerTurnFor(coil: CoilParams, override?: number): number {
@@ -284,6 +308,133 @@ function buildArrowIndices(points: Vec3[]): number[] {
   return indices;
 }
 
+export function resampleFieldLine(points: Vec3[], maxSegmentLength: number): Vec3[] {
+  if (points.length < 2 || maxSegmentLength <= 0) return points.map(point => [...point]);
+  const resampled: Vec3[] = [[...points[0]]];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const d = distance(a, b);
+    const steps = Math.max(1, Math.ceil(d / maxSegmentLength));
+
+    for (let j = 1; j <= steps; j++) {
+      const t = j / steps;
+      resampled.push([
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+      ]);
+    }
+  }
+
+  return resampled;
+}
+
+function getActiveSystemCenter(coils: CoilParams[]): Vec3 {
+  const activeCoils = coils.filter(coil => Math.abs(coil.current) > 1e-10);
+  if (activeCoils.length === 0) return [0, 0, 0];
+
+  let x = 0;
+  let y = 0;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+
+  for (const coil of activeCoils) {
+    x += coil.position[0];
+    y += coil.position[1];
+    const halfLength = ((coil.turns - 1) * coil.pitch) / 2;
+    minZ = Math.min(minZ, coil.position[2] - halfLength);
+    maxZ = Math.max(maxZ, coil.position[2] + halfLength);
+  }
+
+  return [x / activeCoils.length, y / activeCoils.length, (minZ + maxZ) / 2];
+}
+
+function createSymmetricSeedCandidates(
+  coils: CoilParams[],
+  sources: FieldSource[],
+  center: Vec3,
+  targetSpacing: number,
+  boundaryExtent: number,
+  minFieldMagnitude: number,
+  radialSeedCount: number,
+  zSeedLevels: number
+): SeedCandidate[] {
+  const activeCoils = coils.filter(coil => Math.abs(coil.current) > 1e-10);
+  if (activeCoils.length === 0) return [];
+
+  const maxRadius = Math.max(...activeCoils.map(coil => coil.radius));
+  const minRadius = Math.max(maxRadius * 0.24, targetSpacing * 1.35);
+  const outerRadius = Math.min(boundaryExtent * 0.82, maxRadius * 2.35);
+  const radiusSteps = Math.max(2, radialSeedCount);
+  const zSpan = Math.max(
+    maxRadius * 0.16,
+    ...activeCoils.map(coil => Math.max(maxRadius * 0.12, ((coil.turns - 1) * coil.pitch) / 2))
+  );
+  const zSteps = Math.max(1, zSeedLevels);
+  const candidates: SeedCandidate[] = [];
+  const seen = new Set<string>();
+
+  const addSeed = (pos: Vec3) => {
+    if (!insideBoundary(pos, boundaryExtent)) return;
+    const key = pos.map(v => Math.round(v / (targetSpacing * 0.35))).join(',');
+    if (seen.has(key)) return;
+    seen.add(key);
+    const B = calculateTotalFieldFromSources(pos, sources);
+    const mag = vecMag(B);
+    if (mag < minFieldMagnitude) return;
+    candidates.push({ pos, mag });
+  };
+
+  for (let zi = 0; zi < zSteps; zi++) {
+    const zT = zSteps === 1 ? 0 : zi / (zSteps - 1) - 0.5;
+    const z = center[2] + zT * zSpan * 1.2;
+
+    for (let ri = 0; ri < radiusSteps; ri++) {
+      const t = radiusSteps === 1 ? 0 : ri / (radiusSteps - 1);
+      const r = minRadius + (outerRadius - minRadius) * t;
+      addSeed([center[0] + r, center[1], z]);
+    }
+  }
+
+  candidates.sort((a, b) => b.mag - a.mag);
+  return candidates;
+}
+
+function rotateLineGroup(points: Vec3[], center: Vec3, copies: number, familyId: number, seed: Vec3): FieldLine[] {
+  const lines: FieldLine[] = [];
+  for (let copyIndex = 0; copyIndex < copies; copyIndex++) {
+    const angle = (copyIndex / copies) * 2 * Math.PI;
+    const rotatedPoints = points.map(point => rotateAroundCenterZ(point, center, angle));
+    lines.push({
+      points: rotatedPoints,
+      arrowIndices: buildArrowIndices(rotatedPoints),
+      seed: rotateAroundCenterZ(seed, center, angle),
+      familyId,
+      copyIndex,
+      copyCount: copies,
+      symmetryCenter: center,
+      canonicalSeed: seed,
+    });
+  }
+  return lines;
+}
+
+function groupHasNearby(group: FieldLine[], occupancy: OccupancyGrid, spacing: number): boolean {
+  const stride = 2;
+  for (const line of group) {
+    for (let i = 0; i < line.points.length; i += stride) {
+      if (occupancy.hasNearby(line.points[i], spacing)) return true;
+    }
+  }
+  return false;
+}
+
+function addLineGroup(group: FieldLine[], occupancy: OccupancyGrid): void {
+  for (const line of group) occupancy.addLine(line.points);
+}
+
 function createSeedCandidates(
   coils: CoilParams[],
   sources: FieldSource[],
@@ -422,6 +573,88 @@ export function generateFieldLines(coils: CoilParams[], options: FieldLineOption
     lines,
     stats: {
       acceptedSeeds: lines.length,
+      rejectedSeeds,
+      totalVertices,
+      targetSpacing: options.targetSpacing,
+    },
+  };
+}
+
+export function generateSymmetricFieldLines(coils: CoilParams[], options: FieldLineSymmetryOptions): FieldLineResult {
+  const minAcceptedSamples = options.minAcceptedSamples ?? 16;
+  const minFieldMagnitude = options.minFieldMagnitude ?? DEFAULT_MIN_FIELD_MAGNITUDE;
+  const boundaryExtent = options.boundaryExtent ?? options.extent * 1.8;
+  const stepSize = options.stepSize ?? options.targetSpacing * 0.42;
+  const maxVertices = options.maxVertices ?? 16000;
+  const copies = options.copies ?? 12;
+  const radialSeedCount = options.radialSeedCount ?? 7;
+  const zSeedLevels = options.zSeedLevels ?? 3;
+  const center = options.center ?? getActiveSystemCenter(coils);
+  const sources = buildSources(coils, options.segmentsPerTurn);
+  const occupancy = new OccupancyGrid(options.targetSpacing);
+  const lines: FieldLine[] = [];
+  let rejectedSeeds = 0;
+  let totalVertices = 0;
+  let familyId = 0;
+
+  if (sources.length === 0) {
+    return { lines, stats: { acceptedSeeds: 0, rejectedSeeds: 0, totalVertices: 0, targetSpacing: options.targetSpacing } };
+  }
+
+  const candidates = createSymmetricSeedCandidates(
+    coils,
+    sources,
+    center,
+    options.targetSpacing,
+    boundaryExtent,
+    minFieldMagnitude,
+    radialSeedCount,
+    zSeedLevels
+  );
+  const traceOptions = {
+    maxSteps: options.maxSteps,
+    targetSpacing: options.targetSpacing,
+    stepSize,
+    minFieldMagnitude,
+    boundaryExtent,
+  };
+
+  for (const candidate of candidates) {
+    if (lines.length >= options.maxLines || totalVertices >= maxVertices) break;
+    const candidateGroupSeed = rotateLineGroup([candidate.pos], center, copies, familyId, candidate.pos);
+    if (groupHasNearby(candidateGroupSeed, occupancy, options.targetSpacing)) {
+      rejectedSeeds++;
+      continue;
+    }
+
+    const emptyOccupancy = new OccupancyGrid(options.targetSpacing);
+    const backward = traceDirection(candidate.pos, -1, sources, emptyOccupancy, traceOptions);
+    const forward = traceDirection(candidate.pos, 1, sources, emptyOccupancy, traceOptions);
+    const canonicalPoints = [...backward.slice(1).reverse(), ...forward];
+
+    if (canonicalPoints.length < minAcceptedSamples || !isDirectionallyConsistent(canonicalPoints, sources, minFieldMagnitude)) {
+      rejectedSeeds++;
+      continue;
+    }
+
+    const group = rotateLineGroup(canonicalPoints, center, copies, familyId, candidate.pos);
+    const groupVertices = group.reduce((sum, line) => sum + line.points.length, 0);
+    if (lines.length + group.length > options.maxLines || totalVertices + groupVertices > maxVertices) break;
+    if (groupHasNearby(group, occupancy, options.targetSpacing * 0.82)) {
+      rejectedSeeds++;
+      continue;
+    }
+
+    addLineGroup(group, occupancy);
+    lines.push(...group);
+    totalVertices += groupVertices;
+    familyId++;
+  }
+
+  return {
+    lines,
+    stats: {
+      acceptedSeeds: familyId,
       rejectedSeeds,
       totalVertices,
       targetSpacing: options.targetSpacing,
