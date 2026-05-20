@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useTheme } from '@/contexts/ThemeContext';
+import { generateFieldLines } from '@/lib/fieldLines';
 import {
   CoilParams,
   generateCoilSegments,
@@ -345,229 +346,88 @@ function renderField(
   }
 
   if (showLines) {
-    const fieldLineObjects = renderFieldLinesSymmetric(coils, extent, step, isDark);
+    const fieldLineObjects = renderFieldLinesAdaptive(coils, extent, isDark);
     objects.push(...fieldLineObjects);
   }
 
   return objects;
 }
 
-/* ===================================================================
- * PHYSICALLY CORRECT MAGNETIC FIELD LINE RENDERING
- *
- * Strategy: Exploit the axial symmetry of a circular current loop.
- *
- * For a single coil lying in the xy-plane centred at the origin,
- * the B-field is rotationally symmetric about the z-axis.
- * Therefore every field line in one meridional half-plane (e.g. the
- * xz-plane, x >= 0) can be rotated around the z-axis to produce
- * identical copies at any azimuthal angle.
- *
- * Steps:
- *   1. Place seed points in the xz-plane at several radial distances
- *      from the axis (slightly above the coil plane).
- *   2. Trace each seed with high-precision RK4 in the xz-plane
- *      (using high segment count for Biot-Savart to minimise
- *      discretisation error).
- *   3. Rotate the resulting 2-D curve around the z-axis N times
- *      to produce the full 3-D field-line family.
- *
- * This guarantees every azimuthal copy is *exactly* the same shape
- * and size, matching the true rotational symmetry of the physics.
- *
- * For dual-coil (coaxial) setups the same symmetry holds as long
- * as both coils share the same axis, which is the case here.
- * =================================================================== */
-
-/**
- * Compute total B field at a point from all coils.
- * Uses a high segment count for accuracy.
- */
-function computeTotalB(pos: Vec3, coils: CoilParams[], segPerTurn: number = 128): Vec3 {
-  let Bx = 0, By = 0, Bz = 0;
-  for (const coil of coils) {
-    if (Math.abs(coil.current) < 1e-10) continue;
-    const B = calculateBField(pos, coil, segPerTurn);
-    Bx += B[0]; By += B[1]; Bz += B[2];
-  }
-  return [Bx, By, Bz];
-}
-
-/**
- * Trace a field line using 4th-order Runge-Kutta in the FULL 3-D space.
- * We start in the xz-plane but the tracer is general.
- * High segPerTurn (128) ensures the B-field is nearly rotationally
- * symmetric so the line stays in the meridional plane.
- */
-function traceFieldLineRK4(
-  start: Vec3, coils: CoilParams[], extent: number,
-  maxSteps: number, stepSize: number, direction: 1 | -1
-): Vec3[] {
-  const points: Vec3[] = [[...start]];
-  let pos: Vec3 = [...start];
-  const minMag = 1e-15;
-  const segPerTurn = 128; // High accuracy
-
-  for (let i = 0; i < maxSteps; i++) {
-    // k1
-    const B1 = computeTotalB(pos, coils, segPerTurn);
-    const m1 = Math.sqrt(B1[0] ** 2 + B1[1] ** 2 + B1[2] ** 2);
-    if (m1 < minMag) break;
-    const k1: Vec3 = [direction * B1[0] / m1, direction * B1[1] / m1, direction * B1[2] / m1];
-
-    // k2
-    const p2: Vec3 = [pos[0] + 0.5 * stepSize * k1[0], pos[1] + 0.5 * stepSize * k1[1], pos[2] + 0.5 * stepSize * k1[2]];
-    const B2 = computeTotalB(p2, coils, segPerTurn);
-    const m2 = Math.sqrt(B2[0] ** 2 + B2[1] ** 2 + B2[2] ** 2);
-    if (m2 < minMag) break;
-    const k2: Vec3 = [direction * B2[0] / m2, direction * B2[1] / m2, direction * B2[2] / m2];
-
-    // k3
-    const p3: Vec3 = [pos[0] + 0.5 * stepSize * k2[0], pos[1] + 0.5 * stepSize * k2[1], pos[2] + 0.5 * stepSize * k2[2]];
-    const B3 = computeTotalB(p3, coils, segPerTurn);
-    const m3 = Math.sqrt(B3[0] ** 2 + B3[1] ** 2 + B3[2] ** 2);
-    if (m3 < minMag) break;
-    const k3: Vec3 = [direction * B3[0] / m3, direction * B3[1] / m3, direction * B3[2] / m3];
-
-    // k4
-    const p4: Vec3 = [pos[0] + stepSize * k3[0], pos[1] + stepSize * k3[1], pos[2] + stepSize * k3[2]];
-    const B4 = computeTotalB(p4, coils, segPerTurn);
-    const m4 = Math.sqrt(B4[0] ** 2 + B4[1] ** 2 + B4[2] ** 2);
-    if (m4 < minMag) break;
-    const k4: Vec3 = [direction * B4[0] / m4, direction * B4[1] / m4, direction * B4[2] / m4];
-
-    // RK4 combine
-    pos = [
-      pos[0] + (stepSize / 6) * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]),
-      pos[1] + (stepSize / 6) * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]),
-      pos[2] + (stepSize / 6) * (k1[2] + 2 * k2[2] + 2 * k3[2] + k4[2])
-    ];
-
-    // Boundary check
-    if (Math.abs(pos[0]) > extent || Math.abs(pos[1]) > extent || Math.abs(pos[2]) > extent) break;
-
-    // Loop closure detection
-    const d = Math.sqrt((pos[0] - start[0]) ** 2 + (pos[1] - start[1]) ** 2 + (pos[2] - start[2]) ** 2);
-    if (i > 30 && d < stepSize * 1.5) {
-      points.push([...start]); // close the loop exactly
-      break;
-    }
-
-    points.push([...pos]);
-  }
-  return points;
-}
-
-/**
- * Rotate a 3-D point around the z-axis by angle phi.
- */
-function rotateAroundZ(p: Vec3, cosPhi: number, sinPhi: number, cx: number, cy: number): Vec3 {
-  const dx = p[0] - cx;
-  const dy = p[1] - cy;
-  return [cx + dx * cosPhi - dy * sinPhi, cy + dx * sinPhi + dy * cosPhi, p[2]];
-}
-
-/**
- * Main renderer: trace field lines in the meridional plane,
- * then rotate copies around the coil axis.
- */
-function renderFieldLinesSymmetric(
-  coils: CoilParams[], extent: number, gridStep: number, isDark: boolean
+function renderFieldLinesAdaptive(
+  coils: CoilParams[], extent: number, isDark: boolean
 ): THREE.Object3D[] {
   const objects: THREE.Object3D[] = [];
-  const R = coils[0].radius;
-  const cx = coils[0].position[0];
-  const cy = coils[0].position[1];
-  const cz = coils[0].position[2];
-
-  // --- 1. Define seed radii in the meridional (xz) plane ---
-  // Seeds are placed at (cx + r, cy, cz + small_offset) so they
-  // lie in the xz-plane through the coil centre.
-  const seedRadii = [0.15 * R, 0.35 * R, 0.55 * R, 0.75 * R, 0.92 * R];
-  const zOffset = R * 0.04; // small offset above coil plane
-  const stepSize = R * 0.03;
-  const maxSteps = 1200;
-  const boundaryExtent = extent * 1.8;
-
-  // --- 2. Trace ONE canonical line per seed radius ---
-  interface TracedLine { points: Vec3[]; seedR: number }
-  const canonicalLines: TracedLine[] = [];
-
-  for (const r of seedRadii) {
-    const seed: Vec3 = [cx + r, cy, cz + zOffset];
-    const fwd = traceFieldLineRK4(seed, coils, boundaryExtent, maxSteps, stepSize, 1);
-    const bwd = traceFieldLineRK4(seed, coils, boundaryExtent, maxSteps, stepSize, -1);
-    const all = [...bwd.reverse(), ...fwd];
-    if (all.length < 10) continue;
-    canonicalLines.push({ points: all, seedR: r });
-  }
-
-  // --- 3. Rotate each canonical line around the z-axis ---
-  const numCopies = 6; // azimuthal copies
+  const R = Math.max(...coils.map(coil => coil.radius));
+  const targetSpacing = Math.min(Math.max(extent * 0.075, R * 0.08), R * 0.22);
+  const { lines } = generateFieldLines(coils, {
+    extent,
+    targetSpacing,
+    maxLines: 36,
+    maxSteps: 900,
+    minAcceptedSamples: 16,
+    minFieldMagnitude: 1e-15,
+    boundaryExtent: extent * 1.8,
+    maxVertices: 16000,
+  });
   const lineColor = isDark ? 0x4fd1c5 : 0x0e6f9e;
+  const baseColor = new THREE.Color(lineColor);
 
-  for (const line of canonicalLines) {
-    for (let k = 0; k < numCopies; k++) {
-      const phi = (k / numCopies) * 2 * Math.PI;
-      const cosPhi = Math.cos(phi);
-      const sinPhi = Math.sin(phi);
+  for (const line of lines) {
+    const positions: number[] = [];
+    const colors: number[] = [];
 
-      const positions: number[] = [];
-      const colors: number[] = [];
-      const baseColor = new THREE.Color(lineColor);
+    for (let i = 0; i < line.points.length; i++) {
+      const p = line.points[i];
+      positions.push(p[0], p[1], p[2]);
 
-      for (let i = 0; i < line.points.length; i++) {
-        const rotated = rotateAroundZ(line.points[i], cosPhi, sinPhi, cx, cy);
-        positions.push(rotated[0], rotated[1], rotated[2]);
+      const t = i / (line.points.length - 1);
+      const fade = Math.min(1, Math.min(t, 1 - t) * 8);
+      colors.push(
+        baseColor.r * (0.3 + 0.7 * fade),
+        baseColor.g * (0.3 + 0.7 * fade),
+        baseColor.b * (0.3 + 0.7 * fade)
+      );
+    }
 
-        // Smooth fade at endpoints
-        const t = i / (line.points.length - 1);
-        const fade = Math.min(1, Math.min(t, 1 - t) * 8);
-        colors.push(baseColor.r * (0.3 + 0.7 * fade), baseColor.g * (0.3 + 0.7 * fade), baseColor.b * (0.3 + 0.7 * fade));
-      }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const mat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: isDark ? 0.55 : 0.65,
+    });
+    objects.push(new THREE.Line(geo, mat));
+  }
 
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-      const mat = new THREE.LineBasicMaterial({
-        vertexColors: true,
-        transparent: true,
-        opacity: isDark ? 0.55 : 0.65,
-      });
-      objects.push(new THREE.Line(geo, mat));
+  const arrowPlacements: { position: Vec3; direction: THREE.Vector3 }[] = [];
+  for (const line of lines) {
+    for (const idx of line.arrowIndices) {
+      if (idx >= line.points.length - 1) continue;
+      const p = line.points[idx];
+      const pNext = line.points[Math.min(idx + 2, line.points.length - 1)];
+      const dir = new THREE.Vector3(pNext[0] - p[0], pNext[1] - p[1], pNext[2] - p[2]).normalize();
+      if (dir.length() < 0.5) continue;
+      arrowPlacements.push({ position: p, direction: dir });
     }
   }
 
-  // --- 4. Direction arrows (placed on a subset of rotated lines) ---
-  const arrowColor = new THREE.Color(isDark ? 0x4fd1c5 : 0x0e6f9e);
-  const arrowSize = R * 0.02;
-  const coneGeo = new THREE.ConeGeometry(arrowSize, arrowSize * 2.5, 4);
-  coneGeo.translate(0, arrowSize * 1.25, 0);
-  const arrowMat = new THREE.MeshBasicMaterial({ color: arrowColor, transparent: true, opacity: isDark ? 0.7 : 0.8 });
+  if (arrowPlacements.length > 0) {
+    const arrowSize = R * 0.02;
+    const coneGeo = new THREE.ConeGeometry(arrowSize, arrowSize * 2.5, 4);
+    coneGeo.translate(0, arrowSize * 1.25, 0);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: baseColor, transparent: true, opacity: isDark ? 0.7 : 0.8 });
+    const arrows = new THREE.InstancedMesh(coneGeo, arrowMat, arrowPlacements.length);
+    const dummy = new THREE.Object3D();
 
-  for (const line of canonicalLines) {
-    // Place arrows only on 2 azimuthal copies to avoid clutter
-    for (let k = 0; k < numCopies; k += 3) {
-      const phi = (k / numCopies) * 2 * Math.PI;
-      const cosPhi = Math.cos(phi);
-      const sinPhi = Math.sin(phi);
-
-      const pts = line.points;
-      if (pts.length < 40) continue;
-      const interval = Math.floor(pts.length / 5);
-      for (let j = 1; j <= 4; j++) {
-        const idx = j * interval;
-        if (idx >= pts.length - 1) continue;
-        const p = rotateAroundZ(pts[idx], cosPhi, sinPhi, cx, cy);
-        const pNext = rotateAroundZ(pts[Math.min(idx + 2, pts.length - 1)], cosPhi, sinPhi, cx, cy);
-        const dir = new THREE.Vector3(pNext[0] - p[0], pNext[1] - p[1], pNext[2] - p[2]).normalize();
-        if (dir.length() < 0.5) continue;
-        const arrow = new THREE.Mesh(coneGeo, arrowMat);
-        arrow.position.set(p[0], p[1], p[2]);
-        arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-        objects.push(arrow);
-      }
-    }
+    arrowPlacements.forEach((placement, i) => {
+      dummy.position.set(placement.position[0], placement.position[1], placement.position[2]);
+      dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), placement.direction);
+      dummy.updateMatrix();
+      arrows.setMatrixAt(i, dummy.matrix);
+    });
+    arrows.instanceMatrix.needsUpdate = true;
+    objects.push(arrows);
   }
 
   return objects;

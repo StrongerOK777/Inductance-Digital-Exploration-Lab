@@ -13,6 +13,7 @@ const MU_0_OVER_4PI = 1e-7; // μ₀/(4π) = 10⁻⁷ T·m/A
 
 // Vector operations
 export type Vec3 = [number, number, number];
+export interface CoilSegment { pos: Vec3; dl: Vec3 }
 
 export function vecAdd(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -81,10 +82,10 @@ export const DEFAULT_COIL: CoilParams = {
 export function generateCoilSegments(
   params: CoilParams,
   segmentsPerTurn: number = 64
-): { pos: Vec3; dl: Vec3 }[] {
+): CoilSegment[] {
   const { radius, turns, pitch, position, rotation, direction } = params;
   const totalSegments = segmentsPerTurn * turns;
-  const segments: { pos: Vec3; dl: Vec3 }[] = [];
+  const segments: CoilSegment[] = [];
   
   // Total length along z-axis for solenoid
   const totalLength = (turns - 1) * pitch;
@@ -139,10 +140,20 @@ export function calculateBField(
   segmentsPerTurn: number = 64
 ): Vec3 {
   const segments = generateCoilSegments(coilParams, segmentsPerTurn);
-  const I = coilParams.current;
-  
+  return calculateBFieldFromSegments(point, segments, coilParams.current);
+}
+
+/**
+ * Calculate magnetic field B at a point from already-discretized coil segments.
+ * This lets stream-line tracers reuse segment geometry across many samples.
+ */
+export function calculateBFieldFromSegments(
+  point: Vec3,
+  segments: CoilSegment[],
+  current: number
+): Vec3 {
   let Bx = 0, By = 0, Bz = 0;
-  const prefactor = MU_0_OVER_4PI * I;
+  const prefactor = MU_0_OVER_4PI * current;
   
   for (const seg of segments) {
     // r = point - segment_position (vector from source to field point)
