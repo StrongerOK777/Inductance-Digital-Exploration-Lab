@@ -57,7 +57,7 @@ export default function Home() {
   const [showFieldLines, setShowFieldLines] = useState(false);
   const [fieldThreshold, setFieldThreshold] = useState(0.05);
   const [fieldLineWidth, setFieldLineWidth] = useState(3.5);
-  const [fieldLineDensity, setFieldLineDensity] = useState(1.0);
+  const [fieldLineDensity, setFieldLineDensity] = useState(24);
 
   // Physics data from 3D viewer
   const [physicsData, setPhysicsData] = useState<PhysicsData | null>(null);
@@ -84,7 +84,7 @@ export default function Home() {
     setShowFieldLines(false);
     setFieldThreshold(0.05);
     setFieldLineWidth(3.5);
-    setFieldLineDensity(1.0);
+    setFieldLineDensity(24);
   }, []);
 
   const handleDualModeChange = useCallback((dual: boolean) => {

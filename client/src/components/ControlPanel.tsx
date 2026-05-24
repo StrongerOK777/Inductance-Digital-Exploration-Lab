@@ -189,7 +189,7 @@ export default function ControlPanel({
         </label>
         <SliderRow label="显示阈值" value={fieldThreshold} min={0} max={0.5} step={0.01} unit="" tooltip="仅显示 |B| > 阈值×max|B| 的箭头" onChange={onFieldThresholdChange} />
         <SliderRow label="磁力线粗细" value={fieldLineWidth} min={1.2} max={3.5} step={0.1} unit="px" tooltip="磁力线屏幕宽度，最大值为当前粗线效果" onChange={onFieldLineWidthChange} />
-        <SliderRow label="磁力线密度" value={fieldLineDensity} min={0.5} max={2} step={0.1} unit="×" tooltip="磁力线数量倍率，最大约为当前默认数量的两倍" onChange={onFieldLineDensityChange} />
+        <SliderRow label="磁力线密度" value={fieldLineDensity} min={4} max={48} step={1} unit="条" tooltip="360度下一共几个磁力线" onChange={onFieldLineDensityChange} />
         <div className="space-y-0.5">
           <span className="text-[10px] t-muted-soft">分辨率</span>
           <div className="flex gap-1">

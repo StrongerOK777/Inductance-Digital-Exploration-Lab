@@ -6,9 +6,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { useTheme } from '@/contexts/ThemeContext';
 import { generateSymmetricFieldLines, resampleFieldLine } from '@/lib/fieldLines';
 import {
@@ -135,7 +132,6 @@ export default function MagneticFieldViewer({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-      updateWideLineResolution(objectsRef.current, w, h);
     };
     window.addEventListener('resize', handleResize);
 
@@ -380,86 +376,94 @@ function renderFieldLinesSymmetric(
   const objects: THREE.Object3D[] = [];
   const R = Math.max(...coils.map(coil => coil.radius));
   const targetSpacing = Math.min(Math.max(extent * 0.075, R * 0.08), R * 0.22);
-  const densityScale = Math.min(Math.max(fieldLineDensity, 0.5), 2);
+  
+  const copies = Math.round(fieldLineDensity);
+  const maxLines = copies * 10;
+  
   const { lines } = generateSymmetricFieldLines(coils, {
     extent,
     targetSpacing,
-    maxLines: Math.round(36 * densityScale),
+    maxLines,
     maxSteps: 900,
     minAcceptedSamples: 16,
     minFieldMagnitude: 1e-15,
     boundaryExtent: extent * 1.8,
-    maxVertices: Math.round(16000 * densityScale),
-    copies: 12,
-    radialSeedCount: Math.round(7 * densityScale),
-    zSeedLevels: densityScale > 1.5 ? 4 : 3,
+    maxVertices: copies * 5000,
+    copies,
+    radialSeedCount: Math.max(3, Math.round(copies / 3)),
+    zSeedLevels: 3,
   });
-  const lineColor = isDark ? DARK_LINE : 0x0e6f9e;
+
+  const lineColor = isDark ? DARK_LINE : 0x0ea5e9;
   const baseColor = new THREE.Color(lineColor);
 
+  // 用矢量箭头表示磁力线，而不是连续的折线段
+  const vectorPlacements: { position: Vec3; direction: THREE.Vector3; fade: number }[] = [];
+  
   for (const line of lines) {
     const smoothPoints = smoothLinePoints(line.points, targetSpacing * 0.35);
-    const positions: number[] = [];
-    const colors: number[] = [];
-
-    for (let i = 0; i < smoothPoints.length; i++) {
+    // 每隔一段距离放置一个矢量
+    const step = Math.max(1, Math.floor(smoothPoints.length / 40));
+    
+    for (let i = 0; i < smoothPoints.length - 1; i += step) {
       const p = smoothPoints[i];
-      positions.push(p[0], p[1], p[2]);
-
+      const pNext = smoothPoints[Math.min(i + 1, smoothPoints.length - 1)];
+      const dir = new THREE.Vector3(pNext[0] - p[0], pNext[1] - p[1], pNext[2] - p[2]);
+      if (dir.lengthSq() < 1e-6) continue;
+      
       const t = i / (smoothPoints.length - 1);
       const fade = Math.min(1, Math.min(t, 1 - t) * 8);
-      colors.push(
-        baseColor.r * (0.3 + 0.7 * fade),
-        baseColor.g * (0.3 + 0.7 * fade),
-        baseColor.b * (0.3 + 0.7 * fade)
-      );
-    }
-
-    const geo = new LineGeometry();
-    geo.setPositions(positions);
-    geo.setColors(colors);
-    const mat = new LineMaterial({
-      color: baseColor,
-      vertexColors: true,
-      transparent: true,
-      opacity: isDark ? 0.55 : 0.65,
-      worldUnits: false,
-      resolution: new THREE.Vector2(viewport.width, viewport.height),
-      linewidth: fieldLineWidth,
-    } as ConstructorParameters<typeof LineMaterial>[0] & { linewidth: number });
-    const wideLine = new Line2(geo, mat);
-    wideLine.computeLineDistances();
-    objects.push(wideLine);
-  }
-
-  const arrowPlacements: { position: Vec3; direction: THREE.Vector3 }[] = [];
-  for (const line of lines) {
-    for (const idx of line.arrowIndices) {
-      if (idx >= line.points.length - 1) continue;
-      const p = line.points[idx];
-      const pNext = line.points[Math.min(idx + 2, line.points.length - 1)];
-      const dir = new THREE.Vector3(pNext[0] - p[0], pNext[1] - p[1], pNext[2] - p[2]).normalize();
-      if (dir.length() < 0.5) continue;
-      arrowPlacements.push({ position: p, direction: dir });
+      
+      vectorPlacements.push({
+        position: p,
+        direction: dir.normalize(),
+        fade
+      });
     }
   }
 
-  if (arrowPlacements.length > 0) {
-    const arrowSize = R * 0.02;
-    const coneGeo = new THREE.ConeGeometry(arrowSize, arrowSize * 2.5, 4);
-    coneGeo.translate(0, arrowSize * 1.25, 0);
-    const arrowMat = new THREE.MeshBasicMaterial({ color: baseColor, transparent: true, opacity: isDark ? 0.7 : 0.8 });
-    const arrows = new THREE.InstancedMesh(coneGeo, arrowMat, arrowPlacements.length);
+  if (vectorPlacements.length > 0) {
+    const arrowSize = R * 0.015;
+    
+    // Create arrow geometry: cylinder + cone
+    const cylinderGeo = new THREE.CylinderGeometry(arrowSize * 0.4, arrowSize * 0.4, arrowSize * 3, 5);
+    cylinderGeo.translate(0, arrowSize * 1.5, 0);
+    const coneGeo = new THREE.ConeGeometry(arrowSize * 1.2, arrowSize * 2, 5);
+    coneGeo.translate(0, arrowSize * 3 + arrowSize, 0);
+    
+    // Merge them together manually using group or just draw them as one geometry, but simplest is to just use standard cone + cylinder geometries inside a group?
+    // InstancedMesh only takes one geometry, so we just use ArrowHelper concept geometrically. Let's merge simple buffers.
+    // Three.js doesn't easily merge buffers without BufferGeometryUtils, but we can just use 2 InstancedMeshes.
+    
+    const shaftMat = new THREE.MeshBasicMaterial({ color: baseColor, transparent: true, opacity: isDark ? 0.4 : 0.5 });
+    const headMat = new THREE.MeshBasicMaterial({ color: baseColor, transparent: true, opacity: isDark ? 0.6 : 0.7 });
+    
+    const shafts = new THREE.InstancedMesh(cylinderGeo, shaftMat, vectorPlacements.length);
+    const heads = new THREE.InstancedMesh(coneGeo, headMat, vectorPlacements.length);
     const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
 
-    arrowPlacements.forEach((placement, i) => {
+    vectorPlacements.forEach((placement, i) => {
       dummy.position.set(placement.position[0], placement.position[1], placement.position[2]);
       dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), placement.direction);
+      const scale = 0.5 + 0.5 * placement.fade;
+      dummy.scale.set(scale, scale, scale);
       dummy.updateMatrix();
-      arrows.setMatrixAt(i, dummy.matrix);
+      
+      shafts.setMatrixAt(i, dummy.matrix);
+      heads.setMatrixAt(i, dummy.matrix);
+      
+      color.copy(baseColor).lerp(new THREE.Color(0,0,0), 1 - placement.fade);
+      shafts.setColorAt(i, color);
+      heads.setColorAt(i, color);
     });
-    arrows.instanceMatrix.needsUpdate = true;
-    objects.push(arrows);
+    
+    shafts.instanceMatrix.needsUpdate = true;
+    heads.instanceMatrix.needsUpdate = true;
+    if(shafts.instanceColor) shafts.instanceColor.needsUpdate = true;
+    if(heads.instanceColor) heads.instanceColor.needsUpdate = true;
+    
+    objects.push(shafts, heads);
   }
 
   return objects;
@@ -488,13 +492,3 @@ function disposeObject3D(obj: THREE.Object3D) {
   });
 }
 
-function updateWideLineResolution(objects: THREE.Object3D[], width: number, height: number) {
-  for (const obj of objects) {
-    obj.traverse(child => {
-      const material = (child as { material?: unknown }).material;
-      if (material instanceof LineMaterial) {
-        material.resolution.set(width, height);
-      }
-    });
-  }
-}
