@@ -156,27 +156,38 @@ export function calculateBFieldFromSegments(
   const prefactor = MU_0_OVER_4PI * current;
   
   for (const seg of segments) {
-    // r = point - segment_position (vector from source to field point)
-    const rx = point[0] - seg.pos[0];
-    const ry = point[1] - seg.pos[1];
-    const rz = point[2] - seg.pos[2];
+    const rx1 = point[0] - seg.pos[0];
+    const ry1 = point[1] - seg.pos[1];
+    const rz1 = point[2] - seg.pos[2];
     
-    const r2 = rx * rx + ry * ry + rz * rz;
-    if (r2 < 1e-20) continue; // Skip if too close (numerical stability)
+    // r2 = r1 - dl (because dl = end - start, r1 = point - start, r2 = point - end)
+    const rx2 = rx1 - seg.dl[0];
+    const ry2 = ry1 - seg.dl[1];
+    const rz2 = rz1 - seg.dl[2];
     
-    const rMag = Math.sqrt(r2);
-    const r3 = r2 * rMag;
+    // Cross product: dl × r1 (which equals r1 × r2)
+    const cx = seg.dl[1] * rz1 - seg.dl[2] * ry1;
+    const cy = seg.dl[2] * rx1 - seg.dl[0] * rz1;
+    const cz = seg.dl[0] * ry1 - seg.dl[1] * rx1;
     
-    // dB = (μ₀I/4π) × (dl × r) / |r|³
-    // Cross product: dl × r
-    const crossX = seg.dl[1] * rz - seg.dl[2] * ry;
-    const crossY = seg.dl[2] * rx - seg.dl[0] * rz;
-    const crossZ = seg.dl[0] * ry - seg.dl[1] * rx;
+    const r1 = Math.sqrt(rx1 * rx1 + ry1 * ry1 + rz1 * rz1);
+    const r2 = Math.sqrt(rx2 * rx2 + ry2 * ry2 + rz2 * rz2);
     
-    const factor = prefactor / r3;
-    Bx += crossX * factor;
-    By += crossY * factor;
-    Bz += crossZ * factor;
+    const r1DotR2 = rx1 * rx2 + ry1 * ry2 + rz1 * rz2;
+    const denomTerm = r1 * r2 + r1DotR2;
+    
+    // If denomTerm is extremely small, point P lies safely ON or infinitesimally close 
+    // to the segment itself. This catches division by zero or explosive NaNs safely. 
+    // Mathematical exact zero magnetic field on collinear-and-outside points produces 
+    // strictly cx=cy=cz=0, leaving denomTerm nicely non-zero. No cancellation!
+    if (denomTerm < 1e-12) continue;
+    
+    // factor combines the algebraic cancellation of (cos1 - cos2) leaving an always-positive scalar
+    const factor = prefactor * (r1 + r2) / (r1 * r2 * denomTerm);
+    
+    Bx += cx * factor;
+    By += cy * factor;
+    Bz += cz * factor;
   }
   
   return [Bx, By, Bz];

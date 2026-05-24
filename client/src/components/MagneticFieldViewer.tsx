@@ -10,7 +10,7 @@ import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { useTheme } from '@/contexts/ThemeContext';
-import { generateSymmetricFieldLines } from '@/lib/fieldLines';
+import { generateSymmetricFieldLines, resampleFieldLine } from '@/lib/fieldLines';
 import {
   CoilParams,
   generateCoilSegments,
@@ -381,8 +381,8 @@ function renderFieldLinesSymmetric(
   const R = Math.max(...coils.map(coil => coil.radius));
   const targetSpacing = Math.min(Math.max(extent * 0.075, R * 0.08), R * 0.22);
   
-  const copies = Math.round(fieldLineDensity);
-  const maxLines = copies * 10;
+  const copies = Math.min(12, Math.max(6, Math.round(fieldLineDensity / 4)));
+  const maxLines = Math.max(copies, Math.round(fieldLineDensity));
   
   const { lines } = generateSymmetricFieldLines(coils, {
     extent,
@@ -444,7 +444,9 @@ function renderFieldLinesSymmetric(
       if (idx >= line.points.length - 1) continue;
       const p = line.points[idx];
       const pNext = line.points[Math.min(idx + 2, line.points.length - 1)];
-      const dir = new THREE.Vector3(pNext[0] - p[0], pNext[1] - p[1], pNext[2] - p[2]).normalize();
+      const tangent = new THREE.Vector3(pNext[0] - p[0], pNext[1] - p[1], pNext[2] - p[2]).normalize();
+      const dir = totalFieldDirectionAt(p, coils) ?? tangent;
+      if (dir.dot(tangent) < 0) dir.multiplyScalar(-1);
       if (dir.length() < 0.5) continue;
       arrowPlacements.push({ position: p, direction: dir });
     }
@@ -473,27 +475,42 @@ function renderFieldLinesSymmetric(
 
 function smoothLinePoints(points: Vec3[], targetSpacing: number): Vec3[] {
   if (points.length < 4) return points;
-  
-  // 1. 去除原有的先行 resampleFieldLine（线性插值）。
-  //    因为在物理计算节点间插入完全共线的点，会严重干扰 CatmullRom 样条的光滑度，在拐角处产生巨大过冲和“打结/自交小圈”。
-  // 2. 剔除重合或过近的控制点，避免产生奇异切线
-  const vectors: THREE.Vector3[] = [];
-  for (let i = 0; i < points.length; i++) {
-    const pt = new THREE.Vector3(points[i][0], points[i][1], points[i][2]);
-    if (vectors.length > 0 && pt.distanceTo(vectors[vectors.length - 1]) < 1e-4) {
-      continue;
+
+  const deduped: Vec3[] = [];
+  const minDistance = Math.max(targetSpacing * 0.02, 1e-5);
+  for (const point of points) {
+    const previous = deduped[deduped.length - 1];
+    if (previous) {
+      const dx = point[0] - previous[0];
+      const dy = point[1] - previous[1];
+      const dz = point[2] - previous[2];
+      if (Math.sqrt(dx * dx + dy * dy + dz * dz) < minDistance) {
+        continue;
+      }
     }
-    vectors.push(pt);
+    deduped.push(point);
   }
 
-  if (vectors.length < 4) return vectors.map(v => [v.x, v.y, v.z]);
+  if (deduped.length < 2) return deduped;
 
-  const closed = vectors[0].distanceTo(vectors[vectors.length - 1]) < targetSpacing * 1.5;
-  const curve = new THREE.CatmullRomCurve3(vectors, closed, 'centripetal');
-  
-  // 大量增加采样点密度，使得无论放大多少倍都呈现极其平滑的无明显折线的向量曲线感
-  const samples = Math.min(8000, Math.max(vectors.length * 15, 500));
-  return curve.getSpacedPoints(samples).map(point => [point.x, point.y, point.z]);
+  return resampleFieldLine(deduped, targetSpacing);
+}
+
+function totalFieldDirectionAt(point: Vec3, coils: CoilParams[]): THREE.Vector3 | null {
+  let bx = 0;
+  let by = 0;
+  let bz = 0;
+  for (const coil of coils) {
+    if (Math.abs(coil.current) < 1e-10) continue;
+    const B = calculateBField(point, coil, 48);
+    bx += B[0];
+    by += B[1];
+    bz += B[2];
+  }
+
+  const dir = new THREE.Vector3(bx, by, bz);
+  if (dir.length() < 1e-15) return null;
+  return dir.normalize();
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -519,4 +536,3 @@ function updateWideLineResolution(objects: THREE.Object3D[], width: number, heig
     });
   }
 }
-
