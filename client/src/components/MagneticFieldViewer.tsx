@@ -10,7 +10,7 @@ import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { useTheme } from '@/contexts/ThemeContext';
-import { generateSymmetricFieldLines, resampleFieldLine } from '@/lib/fieldLines';
+import { generateSymmetricFieldLines } from '@/lib/fieldLines';
 import {
   CoilParams,
   generateCoilSegments,
@@ -471,14 +471,28 @@ function renderFieldLinesSymmetric(
   return objects;
 }
 
-function smoothLinePoints(points: Vec3[], maxSegmentLength: number): Vec3[] {
-  const resampled = resampleFieldLine(points, maxSegmentLength);
-  if (resampled.length < 4) return resampled;
-  const vectors = resampled.map(point => new THREE.Vector3(point[0], point[1], point[2]));
-  const closed = vectors[0].distanceTo(vectors[vectors.length - 1]) < maxSegmentLength * 1.2;
-  const curve = new THREE.CatmullRomCurve3(vectors, closed, 'centripetal', 0.35);
+function smoothLinePoints(points: Vec3[], targetSpacing: number): Vec3[] {
+  if (points.length < 4) return points;
+  
+  // 1. 去除原有的先行 resampleFieldLine（线性插值）。
+  //    因为在物理计算节点间插入完全共线的点，会严重干扰 CatmullRom 样条的光滑度，在拐角处产生巨大过冲和“打结/自交小圈”。
+  // 2. 剔除重合或过近的控制点，避免产生奇异切线
+  const vectors: THREE.Vector3[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const pt = new THREE.Vector3(points[i][0], points[i][1], points[i][2]);
+    if (vectors.length > 0 && pt.distanceTo(vectors[vectors.length - 1]) < 1e-4) {
+      continue;
+    }
+    vectors.push(pt);
+  }
+
+  if (vectors.length < 4) return vectors.map(v => [v.x, v.y, v.z]);
+
+  const closed = vectors[0].distanceTo(vectors[vectors.length - 1]) < targetSpacing * 1.5;
+  const curve = new THREE.CatmullRomCurve3(vectors, closed, 'centripetal');
+  
   // 大量增加采样点密度，使得无论放大多少倍都呈现极其平滑的无明显折线的向量曲线感
-  const samples = Math.min(8000, Math.max(vectors.length * 20, 500));
+  const samples = Math.min(8000, Math.max(vectors.length * 15, 500));
   return curve.getSpacedPoints(samples).map(point => [point.x, point.y, point.z]);
 }
 
